@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumMaze | Ty</title>
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sankofa+Display&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Quicksand", sans-serif !important;
+            touch-action: none;
+        }
+
+        body {
+            background: #1a1a1a;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .main-container {
+            width: 100%;
+            height: 100vh;
+            max-height: 96vh;
+            background: #2a2a2a;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            padding: 10px;
+            gap: 0px;
+            position: relative;
+        }
+
+        .game-container {
+            position: relative;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            touch-action: none;
+        }
+        
+        .overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #statsOverlay {
+            bottom: 10px;
+            left: 10px;
+        }
+        
+        .side-panel {
+            position: relative;
+            background: #222;
+            border-radius: 15px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            width: 250px;
+            transition: all 0.3s ease;
+            overflow: visible;
+        }
+
+        .side-panel.collapsed {
+            width: 0;
+            padding: 0;
+            margin: 0;
+            gap: 0px;
+        }
+
+        .side-panel.collapsed .control-group,
+        .side-panel.collapsed .entity-list,
+        .side-panel.collapsed .theme-selector {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .side-panel.collapsed .toggle-panel {
+            right: calc(100% + 40px);
+        }
+
+        .side-panel.collapsed > * {
+            visibility: hidden;
+        }
+        
+        .toggle-panel {
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            visibility: visible !important;
+        }
+
+        .side-panel.collapsed > *:not(.toggle-panel) {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-panel:hover {
+            background: #333;
+        }
+
+        .toggle-panel svg {
+            transition: transform 0.3s ease;
+        }
+
+        .side-panel.collapsed .toggle-panel svg {
+            transform: rotate(180deg);
+        }
+        
+        .toggle-panel.collapsed {
+            transform: translateY(-50%) rotate(180deg);
+            border-radius: 0 5px 5px 0;
+        }
+
+        .action-button {
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .action-button svg {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.2s ease;
+        }
+
+        .action-button:hover {
+            background: #333;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .action-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .side-panel.collapsed .control-group {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .action-button {
+            background: #2a2a2a;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            min-width: 44px;
+            min-height: 44px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button {
+            font-family: "Sankofa Display", sans-serif;
+            font-size: 1rem;
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #1a1a3a;
+            color: #00ffff;
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            background-color: #00ffff;
+            color: #1a1a3a;
+        }
+        
+        .entity-list {
+            background: #333;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .entity-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .entity-list::-webkit-scrollbar-track {
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+
+        .entity-list::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+
+        .entity-item {
+            background: #2a2a2a;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 14px;
+        }
+  
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 14px;
+            color: #fff;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        .theme-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+            padding: 10px;
+            background: #333;
+            border-radius: 8px;
+            height: auto;
+            width: 100%;
+        }
+
+        .theme-option {
+            aspect-ratio: 1;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 4px;
+            background: #2a2a2a;
+        }
+
+        .theme-option:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .theme-option.selected {
+            border-color: #fff;
+        }
+        
+        .theme-option .color-preview {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .side-panel {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+                width: auto;
+                max-width: 250px;
+                height: auto;
+                max-height: 80vh;
+                z-index: 100;
+            }
+
+            .side-panel.collapsed {
+                transform: translateX(calc(100% + 20px));
+            }
+
+            .toggle-panel {
+                left: -35px;
+                padding: 8px;
+            }
+
+            .action-buttons {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .action-button {
+                flex: 1;
+                min-width: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="game-container">
+            <canvas id="gameCanvas"></canvas>
+            <div id="statsOverlay" class="overlay">
+                Paths: <span id="pathCount">0</span> |
+                Progress: <span id="pathProgress">0%</span>
+            </div>
+        </div>
+        <div class="side-panel">
+            <button class="toggle-panel">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                    <path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z"/>
+                </svg>
+            </button>
+            <div class="control-group">
+                <div class="action-buttons">
+                    <button class="action-button" id="startStopBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                    </button>
+                    <button class="action-button" id="resetBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Z"/>
+                        </svg>
+                    </button>
+                    <button class="action-button" id="zoomInBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
+                        </svg>
+                    </button>
+                    <button class="action-button" id="zoomOutBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor">
+                            <path d="M200-440v-80h560v80H200Z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="control-group">
+                <div id="entityList" class="entity-list"></div>
+            </div>
+            <div class="control-group">
+                <div id="themeSelector" class="theme-selector"></div>
+            </div>
+        </div>
+    </div>
+    <div id="tooltip"></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startStopBtn = document.getElementById('startStopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const pathCount = document.getElementById('pathCount');
+        const pathProgress = document.getElementById('pathProgress');
+        const entityList = document.getElementById('entityList');
+        const tooltip = document.getElementById('tooltip');
+
+        let isRunning = false;
+        let lastTime = 0;
+        let isMouseDown = false;
+        let offsetX = 0;
+        let offsetY = 0;
+        let zoomLevel = 1;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let maze = null;
+        let quantumPathfinder = null;
+        let pathSolved = false;
+        let activePaths = [];
+        let frameCount = 0;
+        let lastPerformanceCheck = 0;
+        let processingTime = 0;
+        
+        const GRID_SIZE = 300;
+        const CELL_SIZE = 20;
+        const FIXED_TIME_STEP = 10;
+        const MAX_PATHS = 100;
+        const MAX_PROCESSING_TIME = 20;
+        const PARTICLES_PER_FRAME = 25;
+        
+        const colorThemes = [
+            {name: 'Earth', primary: '#4B7BE5', secondary: '#345E8F', tertiary: '#89CFF0', background: '#0A1621'},
+            {name: 'Ultraviolet', primary: '#BD00FF', secondary: '#4C0BFF', tertiary: '#0095FF', background: '#0D0221'},
+            {name: 'Digital Ocean', primary: '#00FFD1', secondary: '#0083FF', tertiary: '#7C00FF', background: '#090E23'},
+            {name: 'Molten Core', primary: '#FF4D00', secondary: '#850000', tertiary: '#FF9300', background: '#1F0A07'},
+            {name: 'Arctic Pulse', primary: '#E2F3F7', secondary: '#4EBFDF', tertiary: '#0784B5', background: '#012841'},
+            {name: 'Dark Matter', primary: '#C874FF', secondary: '#FF4365', tertiary: '#7A04EB', background: '#080010'},
+            {name: 'Nuclear Dawn', primary: '#7FFF00', secondary: '#C4F700', tertiary: '#2EF700', background: '#0A1F00'},
+            {name: 'Quantum Flux', primary: '#00EEFF', secondary: '#00FF87', tertiary: '#00B8FF', background: '#001B29'}
+        ];
+
+        let currentTheme = colorThemes[0];
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        class Cell {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.walls = {
+                    top: true,
+                    right: true,
+                    bottom: true,
+                    left: true
+                };
+                this.visited = false;
+                this.isStart = false;
+                this.isEnd = false;
+                this.distance = Infinity;
+                this.quantum = false;
+                this.solidPath = false;
+                this.pulsate = 0;
+                this.visitCount = 0;
+            }
+        }
+
+        class Maze {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.cells = [];
+                this.stack = [];
+                this.startCell = null;
+                this.endCell = null;
+                this.pulsateTime = 0;
+                this.pulsateSpeed = 0.05;
+                this.minimumPathLength = Math.floor((width + height) * 0.75);
+                this.initialize();
+            }
+
+            initialize() {
+                for (let y = 0; y < this.height; y++) {
+                    for (let x = 0; x < this.width; x++) {
+                        this.cells.push(new Cell(x, y));
+                    }
+                }
+
+                const startX = Math.floor(Math.random() * Math.max(2, Math.floor(this.width / 8)));
+                const startY = Math.floor(Math.random() * this.height);
+                this.startCell = this.getCell(startX, startY);
+                this.startCell.isStart = true;
+
+                let endX, endY, distance;
+                do {
+                    endX = this.width - 1 - Math.floor(Math.random() * Math.max(2, Math.floor(this.width / 8)));
+                    endY = Math.floor(Math.random() * this.height);
+                    distance = Math.abs(endX - startX) + Math.abs(endY - startY);
+                } while (distance < this.minimumPathLength);
+                
+                this.endCell = this.getCell(endX, endY);
+                this.endCell.isEnd = true;
+            }
+
+            getCell(x, y) {
+                if (x < 0 || y < 0 || x >= this.width || y >= this.height) {
+                    return null;
+                }
+                return this.cells[y * this.width + x];
+            }
+
+            getNeighbors(cell) {
+                const neighbors = [];
+                const { x, y } = cell;
+                
+                const top = this.getCell(x, y - 1);
+                const right = this.getCell(x + 1, y);
+                const bottom = this.getCell(x, y + 1);
+                const left = this.getCell(x - 1, y);
+                
+                if (top && !top.visited) neighbors.push({ cell: top, direction: 'top' });
+                if (right && !right.visited) neighbors.push({ cell: right, direction: 'right' });
+                if (bottom && !bottom.visited) neighbors.push({ cell: bottom, direction: 'bottom' });
+                if (left && !left.visited) neighbors.push({ cell: left, direction: 'left' });
+                
+                return neighbors;
+            }
+
+            removeWall(currentCell, nextCell) {
+                const xDiff = currentCell.x - nextCell.x;
+                const yDiff = currentCell.y - nextCell.y;
+                
+                if (xDiff === 1) {
+                    currentCell.walls.left = false;
+                    nextCell.walls.right = false;
+                } else if (xDiff === -1) {
+                    currentCell.walls.right = false;
+                    nextCell.walls.left = false;
+                }
+                
+                if (yDiff === 1) {
+                    currentCell.walls.top = false;
+                    nextCell.walls.bottom = false;
+                } else if (yDiff === -1) {
+                    currentCell.walls.bottom = false;
+                    nextCell.walls.top = false;
+                }
+            }
+
+            generate() {
+                let currentCell = this.startCell;
+                currentCell.visited = true;
+                this.stack.push(currentCell);
+                
+                const totalCells = this.width * this.height;
+                let visitedCells = 1;
+                
+                while (visitedCells < totalCells) {
+                    const neighbors = this.getNeighbors(currentCell);
+                    
+                    if (neighbors.length > 0) {
+                        const randomNeighborIndex = Math.floor(Math.random() * neighbors.length);
+                        const { cell: nextCell } = neighbors[randomNeighborIndex];
+                        
+                        this.removeWall(currentCell, nextCell);
+                        
+                        nextCell.visited = true;
+                        this.stack.push(nextCell);
+                        currentCell = nextCell;
+                        visitedCells++;
+                    } else if (this.stack.length > 0) {
+                        currentCell = this.stack.pop();
+                    } else {
+                        break;
+                    }
+                }
+                
+                for (const cell of this.cells) {
+                    cell.visited = false;
+                }
+                
+                this.addLoops(Math.floor(this.width * this.height * 0.1));
+                this.precomputeDistances();
+            }
+
+            addLoops(count) {
+                for (let i = 0; i < count; i++) {
+                    const x = Math.floor(Math.random() * (this.width - 1));
+                    const y = Math.floor(Math.random() * (this.height - 1));
+                    
+                    const cell = this.getCell(x, y);
+                    
+                    if (Math.random() < 0.5) {
+                        if (cell.walls.right) {
+                            const rightCell = this.getCell(x + 1, y);
+                            cell.walls.right = false;
+                            rightCell.walls.left = false;
+                        }
+                    } else {
+                        if (cell.walls.bottom) {
+                            const bottomCell = this.getCell(x, y + 1);
+                            cell.walls.bottom = false;
+                            bottomCell.walls.top = false;
+                        }
+                    }
+                }
+            }
+
+            precomputeDistances() {
+                const open = [];
+                const endX = this.endCell.x;
+                const endY = this.endCell.y;
+                
+                for (const cell of this.cells) {
+                    cell.distance = Math.abs(cell.x - endX) + Math.abs(cell.y - endY);
+                }
+            }
+
+            canMove(fromCell, direction) {
+                if (!fromCell) return false;
+                
+                switch (direction) {
+                    case 'top':
+                        return !fromCell.walls.top;
+                    case 'right':
+                        return !fromCell.walls.right;
+                    case 'bottom':
+                        return !fromCell.walls.bottom;
+                    case 'left':
+                        return !fromCell.walls.left;
+                    default:
+                        return false;
+                }
+            }
+
+            reset() {
+                for (const cell of this.cells) {
+                    cell.visited = false;
+                    cell.distance = Infinity;
+                    cell.quantum = false;
+                    cell.solidPath = false;
+                    cell.visitCount = 0;
+                }
+                this.precomputeDistances();
+            }
+
+            update(dt) {
+                this.pulsateTime += dt * this.pulsateSpeed;
+            }
+
+            draw(ctx, offsetX, offsetY, zoomLevel) {
+                const cellSize = CELL_SIZE * zoomLevel;
+                const globalPulsate = Math.sin(this.pulsateTime) * 0.5 + 0.5;
+                
+                ctx.fillStyle = chroma(currentTheme.background).darken(0.5).hex();
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                for (const cell of this.cells) {
+                    const x = cell.x * cellSize + offsetX;
+                    const y = cell.y * cellSize + offsetY;
+                    
+                    if (x < -cellSize || y < -cellSize || x > canvas.width || y > canvas.height) {
+                        continue;
+                    }
+                    
+                    if (cell.isStart) {
+                        cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
+                        const startPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                        
+                        const startGlow = ctx.createRadialGradient(
+                            x + cellSize/2, y + cellSize/2, 0,
+                            x + cellSize/2, y + cellSize/2, cellSize * 1.5
+                        );
+                        startGlow.addColorStop(0, chroma(currentTheme.primary).brighten(3).alpha(0.7 * startPulse).hex());
+                        startGlow.addColorStop(0.6, chroma(currentTheme.primary).alpha(0.3 * startPulse).hex());
+                        startGlow.addColorStop(1, chroma(currentTheme.primary).alpha(0).hex());
+                        
+                        ctx.fillStyle = startGlow;
+                        ctx.fillRect(x - cellSize/2, y - cellSize/2, cellSize * 2, cellSize * 2);
+                        
+                        ctx.fillStyle = chroma(currentTheme.primary).brighten(2).alpha(0.8).hex();
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                        
+                        ctx.beginPath();
+                        ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/3, 0, Math.PI * 2);
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.fill();
+                        
+                        ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillStyle = "#000000";
+                        ctx.fillText("S", x + cellSize/2, y + cellSize/2);
+                    } else if (cell.isEnd) {
+                        cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
+                        const endPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                        
+                        const endGlow = ctx.createRadialGradient(
+                            x + cellSize/2, y + cellSize/2, 0,
+                            x + cellSize/2, y + cellSize/2, cellSize * 1.5
+                        );
+                        endGlow.addColorStop(0, chroma(currentTheme.tertiary).brighten(3).alpha(0.7 * endPulse).hex());
+                        endGlow.addColorStop(0.6, chroma(currentTheme.tertiary).alpha(0.3 * endPulse).hex());
+                        endGlow.addColorStop(1, chroma(currentTheme.tertiary).alpha(0).hex());
+                        
+                        ctx.fillStyle = endGlow;
+                        ctx.fillRect(x - cellSize/2, y - cellSize/2, cellSize * 2, cellSize * 2);
+                        
+                        ctx.fillStyle = chroma(currentTheme.tertiary).brighten(2).alpha(0.8).hex();
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                        
+                        ctx.beginPath();
+                        ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/3, 0, Math.PI * 2);
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.fill();
+                        
+                        ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillStyle = "#000000";
+                        ctx.fillText("E", x + cellSize/2, y + cellSize/2);
+                    } else if (cell.solidPath) {
+                        ctx.fillStyle = chroma.mix(currentTheme.primary, currentTheme.tertiary, 0.5).brighten(2).alpha(0.7).hex();
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                    } else if (cell.quantum) {
+                        const intensity = Math.min(1, 0.2 + globalPulsate * 0.8);
+                        const visitIntensity = Math.min(1, cell.visitCount / 5);
+                        ctx.fillStyle = chroma(currentTheme.primary).alpha(intensity * 0.4 * (1 - visitIntensity * 0.5)).hex();
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                    }
+                    
+                    ctx.strokeStyle = chroma(currentTheme.tertiary).alpha(0.4).hex();
+                    ctx.lineWidth = Math.max(1, zoomLevel);
+                    
+                    if (cell.walls.top) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x + cellSize, y);
+                        ctx.stroke();
+                    }
+                    
+                    if (cell.walls.right) {
+                        ctx.beginPath();
+                        ctx.moveTo(x + cellSize, y);
+                        ctx.lineTo(x + cellSize, y + cellSize);
+                        ctx.stroke();
+                    }
+                    
+                    if (cell.walls.bottom) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y + cellSize);
+                        ctx.lineTo(x + cellSize, y + cellSize);
+                        ctx.stroke();
+                    }
+                    
+                    if (cell.walls.left) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x, y + cellSize);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        class QuantumParticle {
+            constructor(x, y, id) {
+                this.x = x;
+                this.y = y;
+                this.id = id;
+                this.path = [];
+                this.path.push({ x, y });
+                this.age = 0;
+                this.splitChance = 0.15;
+                this.speed = 0.3 + Math.random() * 0.2;
+                this.progress = 0;
+                this.reachedEnd = false;
+                this.visited = new Set();
+                this.visited.add(`${x},${y}`);
+                this.color = chroma.mix(
+                    currentTheme.primary, 
+                    currentTheme.secondary,
+                    Math.random()
+                ).hex();
+                this.backtrackStack = [];
+            }
+
+            update(dt, maze) {
+                if (this.reachedEnd) return true;
+                
+                this.age += dt;
+                
+                const currentCell = maze.getCell(this.x, this.y);
+                if (!currentCell) return true;
+                
+                if (currentCell.isEnd) {
+                    this.reachedEnd = true;
+                    return true;
+                }
+                
+                currentCell.quantum = true;
+                
+                const directions = ['top', 'right', 'bottom', 'left'];
+                const possibleMoves = [];
+                
+                for (const direction of directions) {
+                    if (maze.canMove(currentCell, direction)) {
+                        let nextX = this.x;
+                        let nextY = this.y;
+                        
+                        if (direction === 'top') nextY -= 1;
+                        else if (direction === 'right') nextX += 1;
+                        else if (direction === 'bottom') nextY += 1;
+                        else if (direction === 'left') nextX -= 1;
+                        
+                        const nextCell = maze.getCell(nextX, nextY);
+                        
+                        if (nextCell) {
+                            const posKey = `${nextX},${nextY}`;
+                            const hasVisited = this.visited.has(posKey);
+                            
+                            if (nextCell.isEnd) {
+                                possibleMoves.push({ 
+                                    x: nextX, 
+                                    y: nextY, 
+                                    distance: 0,
+                                    isEnd: true
+                                });
+                            } else if (!hasVisited) {
+                                const distance = Math.abs(nextX - maze.endCell.x) + Math.abs(nextY - maze.endCell.y);
+                                possibleMoves.push({ 
+                                    x: nextX, 
+                                    y: nextY, 
+                                    distance: distance,
+                                    isEnd: false
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                if (possibleMoves.length === 0) {
+                    if (this.path.length > 1) {
+                        this.path.pop();
+                        const prevPos = this.path[this.path.length - 1];
+                        this.x = prevPos.x;
+                        this.y = prevPos.y;
+                        const startDistance = Math.abs(maze.startCell.x - maze.endCell.x) + Math.abs(maze.startCell.y - maze.endCell.y);
+                        const currentDistance = Math.abs(this.x - maze.endCell.x) + Math.abs(this.y - maze.endCell.y);
+                        this.progress = 1 - (currentDistance / startDistance);
+                    }
+                    return true;
+                }
+                
+                const endMove = possibleMoves.find(move => move.isEnd);
+                if (endMove) {
+                    this.x = endMove.x;
+                    this.y = endMove.y;
+                    this.path.push({ x: this.x, y: this.y });
+                    this.reachedEnd = true;
+                    return true;
+                }
+                
+                possibleMoves.sort((a, b) => {
+                    const distDiff = a.distance - b.distance;
+                    if (Math.abs(distDiff) > 5) return distDiff;
+                    return Math.random() - 0.5;
+                });
+                
+                const targetMove = possibleMoves[0];
+                this.visited.add(`${targetMove.x},${targetMove.y}`);
+                this.x = targetMove.x;
+                this.y = targetMove.y;
+                
+                const cell = maze.getCell(this.x, this.y);
+                cell.quantum = true;
+                
+                this.path.push({ x: this.x, y: this.y });
+                
+                if (possibleMoves.length > 1 && Math.random() < this.splitChance && activePaths.length < MAX_PATHS) {
+                    const alternativeMoves = possibleMoves.slice(1);
+                    const alternativeMove = alternativeMoves[Math.floor(Math.random() * alternativeMoves.length)];
+                    
+                    const newParticle = new QuantumParticle(this.x, this.y, activePaths.length);
+                    newParticle.x = alternativeMove.x;
+                    newParticle.y = alternativeMove.y;
+                    newParticle.path = [{ x: this.x, y: this.y }, { x: alternativeMove.x, y: alternativeMove.y }];
+                    newParticle.visited.add(`${this.x},${this.y}`);
+                    newParticle.visited.add(`${alternativeMove.x},${alternativeMove.y}`);
+                    
+                    maze.getCell(alternativeMove.x, alternativeMove.y).quantum = true;
+                    
+                    activePaths.push(newParticle);
+                }
+                
+                const startDistance = Math.abs(maze.startCell.x - maze.endCell.x) + Math.abs(maze.startCell.y - maze.endCell.y);
+                const currentDistance = Math.abs(this.x - maze.endCell.x) + Math.abs(this.y - maze.endCell.y);
+                this.progress = 1 - (currentDistance / startDistance);
+                
+                return true;
+            }
+
+            draw(ctx, offsetX, offsetY, zoomLevel) {
+                const cellSize = CELL_SIZE * zoomLevel;
+                
+                if (this.path.length === 0) return;
+                
+                const head = this.path[this.path.length - 1];
+                const x = head.x * cellSize + offsetX + cellSize / 2;
+                const y = head.y * cellSize + offsetY + cellSize / 2;
+                
+                if (x < -cellSize || y < -cellSize || x > canvas.width || y > canvas.height) {
+                    return;
+                }
+                
+                ctx.fillStyle = this.reachedEnd ? 
+                    chroma(currentTheme.tertiary).brighten(1).hex() : 
+                    chroma(this.color).alpha(0.8).hex();
+                
+                ctx.beginPath();
+                ctx.arc(x, y, cellSize / 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class QuantumPathfinder {
+            constructor(maze) {
+                this.maze = maze;
+                this.paths = [];
+                this.initialPathCount = 50;
+                this.solvedPath = null;
+                this.progress = 0;
+                this.maxProgress = 0;
+                this.lastUpdateTime = 0;
+                this.initialize();
+            }
+
+            initialize() {
+                for (let i = 0; i < this.initialPathCount; i++) {
+                    const particle = new QuantumParticle(this.maze.startCell.x, this.maze.startCell.y, i);
+                    this.paths.push(particle);
+                }
+                
+                activePaths = [...this.paths];
+            }
+
+            update(dt) {
+                if (this.solvedPath) return;
+                
+                this.maxProgress = 0;
+                
+                const pathsToProcess = Math.min(activePaths.length, 100);
+                
+                for (let i = 0; i < pathsToProcess; i++) {
+                    const index = Math.floor(Math.random() * activePaths.length);
+                    const path = activePaths[index];
+                    
+                    path.update(dt, this.maze);
+                    
+                    if (path.reachedEnd && !this.solvedPath) {
+                        this.solvedPath = path;
+                        this.solidifyPath(path);
+                        break;
+                    }
+                    
+                    this.maxProgress = Math.max(this.maxProgress, path.progress);
+                }
+                
+                if (activePaths.length < MAX_PATHS && !this.solvedPath && activePaths.length < 300) {
+                    for (let i = 0; i < 5; i++) {
+                        if (activePaths.length >= MAX_PATHS) break;
+                        
+                        const newParticle = new QuantumParticle(
+                            this.maze.startCell.x,
+                            this.maze.startCell.y,
+                            activePaths.length
+                        );
+                        activePaths.push(newParticle);
+                    }
+                }
+                
+                this.progress = this.maxProgress;
+            }
+
+            solidifyPath(particle) {
+                for (const point of particle.path) {
+                    const cell = this.maze.getCell(point.x, point.y);
+                    if (cell) {
+                        cell.solidPath = true;
+                    }
+                }
+            }
+
+            draw(ctx, offsetX, offsetY, zoomLevel) {
+                for (const particle of activePaths) {
+                    particle.draw(ctx, offsetX, offsetY, zoomLevel);
+                }
+            }
+        }
+            
+        function findNearbyCell(x, y, offsetX, offsetY, zoomLevel) {
+            const cellSize = CELL_SIZE * zoomLevel;
+            const gridX = Math.floor((x - offsetX) / cellSize);
+            const gridY = Math.floor((y - offsetY) / cellSize);
+            
+            return maze.getCell(gridX, gridY);
+        }
+        
+        function showTooltip(x, y, cell) {
+            if (!cell) {
+                tooltip.style.display = 'none';
+                return;
+            }
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = x + 10 + 'px';
+            tooltip.style.top = y + 10 + 'px';
+            
+            let statusText = '';
+            let statusColor = '#FFFFFF';
+            
+            if (cell.isStart) {
+                statusText = 'START POINT';
+                statusColor = chroma(currentTheme.primary).brighten(2).hex();
+            }
+            else if (cell.isEnd) {
+                statusText = 'END POINT';
+                statusColor = chroma(currentTheme.tertiary).brighten(2).hex();
+            }
+            else if (cell.solidPath) {
+                statusText = 'Solution Path';
+                statusColor = chroma.mix(currentTheme.primary, currentTheme.tertiary, 0.5).brighten(2).hex();
+            }
+            else if (cell.quantum) {
+                statusText = 'Quantum Explored';
+                statusColor = chroma(currentTheme.primary).hex();
+            }
+            else {
+                statusText = 'Unexplored';
+            }
+            
+            const particlesHere = activePaths.filter(p => p.x === cell.x && p.y === cell.y).length;
+            const particleInfo = particlesHere > 0 ? `<br>Active Quantum Particles: <span style="color: ${chroma(currentTheme.secondary).brighten(1).hex()}">${particlesHere}</span>` : '';
+            
+            tooltip.innerHTML = `
+                <strong style="font-size: 16px;">Cell (${cell.x}, ${cell.y})</strong><br>
+                Status: <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span><br>
+                Distance to Start: ${calculateDistance(cell.x, cell.y, maze.startCell.x, maze.startCell.y)}
+                <br>Distance to End: ${calculateDistance(cell.x, cell.y, maze.endCell.x, maze.endCell.y)}
+                ${particleInfo}
+            `;
+        }
+        
+        function calculateDistance(x1, y1, x2, y2) {
+            return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+        }
+
+        function drawScene() {
+            offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            
+            maze.draw(offscreenCtx, offsetX, offsetY, zoomLevel);
+            quantumPathfinder.draw(offscreenCtx, offsetX, offsetY, zoomLevel);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(offscreenCanvas, 0, 0);
+        }
+
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            frameCount++;
+            
+            dt = Math.min(dt, 0.03);
+            
+            if (isRunning && !quantumPathfinder.solvedPath) {
+                const startTime = performance.now();
+                maze.update(dt);
+                quantumPathfinder.update(dt);
+                processingTime = performance.now() - startTime;
+                
+                if (frameCount % 60 === 0) {
+                    if (processingTime > 30) {
+                        activePaths = activePaths.filter((p, idx) => idx % 2 === 0);
+                        quantumPathfinder.pathsToProcess = [...activePaths];
+                    }
+                }
+            } else {
+                maze.update(dt);
+            }
+            
+            drawScene();
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function getMousePosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (event.clientX - rect.left) * scaleX,
+                y: (event.clientY - rect.top) * scaleY
+            };
+        }
+
+        function updateUI() {
+            pathCount.textContent = activePaths.length;
+            pathProgress.textContent = `${Math.round(quantumPathfinder?.progress * 100 || 0)}%`;
+            
+            const exploredCells = maze.cells.filter(cell => cell.quantum || cell.solidPath).length;
+            const totalCells = maze.width * maze.height;
+            const explorationPercent = Math.round((exploredCells / totalCells) * 100);
+            
+            let bestParticle = null;
+            let maxProgress = 0;
+            for (const particle of activePaths) {
+                if (particle.progress > maxProgress) {
+                    maxProgress = particle.progress;
+                    bestParticle = particle;
+                }
+            }
+            
+            const statusColor = quantumPathfinder?.solvedPath ? 
+                chroma(currentTheme.tertiary).brighten(2).hex() : 
+                chroma(currentTheme.primary).brighten(1).hex();
+            
+            document.getElementById('statsOverlay').innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <div>
+                        Quantum Paths: <span style="color: ${statusColor}; font-weight: bold;">${activePaths.length}</span> | 
+                        Progress: <span style="color: ${statusColor}; font-weight: bold;">${Math.round(quantumPathfinder?.progress * 100 || 0)}%</span> | 
+                        Explored: ${explorationPercent}%
+                    </div>
+                    <div>
+                        Start: (${maze.startCell.x},${maze.startCell.y}) | 
+                        End: (${maze.endCell.x},${maze.endCell.y}) | 
+                        ${quantumPathfinder?.solvedPath ? 
+                            `<span style="color: ${statusColor}; font-weight: bold;">PATH FOUND! Length: ${quantumPathfinder.solvedPath.path.length}</span>` : 
+                            'Searching...'}
+                    </div>
+                </div>
+            `;
+            
+            const samplePaths = [...activePaths]
+                .sort((a, b) => b.progress - a.progress)
+                .slice(0, 5);
+                
+            entityList.innerHTML = samplePaths.map(path => {
+                const progressPercentage = Math.round(path.progress * 100);
+                const distanceToEnd = calculateDistance(path.x, path.y, maze.endCell.x, maze.endCell.y);
+                const pathColor = path.reachedEnd ? 
+                    chroma(currentTheme.tertiary).brighten(2).hex() : 
+                    path === bestParticle ? 
+                        chroma(path.color).brighten(1).hex() : 
+                        path.color;
+                
+                return `
+                    <div class="entity-item" style="border-left: 3px solid ${pathColor}">
+                        <strong>Path #${path.id}</strong><br>
+                        Position: (${path.x}, ${path.y})<br>
+                        Progress: <span style="color: ${pathColor}">${progressPercentage}%</span><br>
+                        Length: ${path.path.length} cells<br>
+                        Distance to End: ${distanceToEnd}<br>
+                        ${path === bestParticle ? '<strong style="color: gold;">⭐ Leading path</strong>' : ''}
+                        ${path.reachedEnd ? '<strong style="color: lime;">✓ DESTINATION REACHED!</strong>' : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            if (samplePaths.length === 0) {
+                entityList.innerHTML = `
+                    <div class="entity-item">
+                        <strong>No active quantum paths</strong><br>
+                        ${quantumPathfinder?.solvedPath ? 
+                            '<span style="color: lime;">✓ Solution found!</span>' : 
+                            'Simulation paused or reset needed.'}
+                    </div>
+                `;
+            }
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+            
+            centerMaze();
+            drawScene();
+        }
+        
+        function centerMaze() {
+            offsetX = (canvas.width - maze.width * CELL_SIZE * zoomLevel) / 2;
+            offsetY = (canvas.height - maze.height * CELL_SIZE * zoomLevel) / 2;
+        }
+
+        function initMaze() {
+            maze = new Maze(GRID_SIZE, GRID_SIZE);
+            maze.generate();
+            
+            quantumPathfinder = new QuantumPathfinder(maze);
+            
+            centerMaze();
+        }
+
+        function saveGameState() {
+            const gameState = {
+                zoomLevel,
+                offsetX,
+                offsetY,
+                isRunning,
+                currentTheme: colorThemes.indexOf(currentTheme)
+            };
+            localStorage.setItem('quantumMazeState', JSON.stringify(gameState));
+        }
+
+        function loadGameState() {
+            const savedState = localStorage.getItem('quantumMazeState');
+            if (!savedState) return false;
+            
+            try {
+                const gameState = JSON.parse(savedState);
+                zoomLevel = gameState.zoomLevel || 1;
+                offsetX = gameState.offsetX || 0;
+                offsetY = gameState.offsetY || 0;
+                isRunning = gameState.isRunning || false;
+                
+                if (typeof gameState.currentTheme === 'number' && 
+                    gameState.currentTheme >= 0 && 
+                    gameState.currentTheme < colorThemes.length) {
+                    currentTheme = colorThemes[gameState.currentTheme];
+                }
+                
+                return true;
+            } catch (e) {
+                console.error("Error loading game state:", e);
+                return false;
+            }
+        }
+        
+        canvas.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            isMouseDown = true;
+            dragStartX = event.clientX;
+            dragStartY = event.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            event.preventDefault();
+            const pos = getMousePosition(event);
+            
+            if (isMouseDown) {
+                const deltaX = event.clientX - dragStartX;
+                const deltaY = event.clientY - dragStartY;
+                
+                offsetX += deltaX;
+                offsetY += deltaY;
+                
+                dragStartX = event.clientX;
+                dragStartY = event.clientY;
+            }
+            
+            const cell = findNearbyCell(pos.x, pos.y, offsetX, offsetY, zoomLevel);
+            if (cell) {
+                showTooltip(event.clientX, event.clientY, cell);
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => isMouseDown = false);
+        
+        canvas.addEventListener('mouseleave', () => {
+            isMouseDown = false;
+            tooltip.style.display = 'none';
+        });
+        
+        canvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            
+            const pos = getMousePosition(event);
+            const mouseX = pos.x;
+            const mouseY = pos.y;
+            
+            const oldZoom = zoomLevel;
+            
+            if (event.deltaY < 0) {
+                zoomLevel = Math.min(zoomLevel * 1.1, 5);
+            } else {
+                zoomLevel = Math.max(zoomLevel * 0.9, 0.1);
+            }
+            
+            const zoomFactor = zoomLevel / oldZoom;
+            
+            offsetX = mouseX - (mouseX - offsetX) * zoomFactor;
+            offsetY = mouseY - (mouseY - offsetY) * zoomFactor;
+        });
+
+        startStopBtn.addEventListener('click', () => {
+            isRunning = !isRunning;
+            startStopBtn.querySelector('svg').innerHTML = isRunning 
+                ? '<path d="M520-200h80v-560h-80v560Zm-160 0h80v-560h-80v560Z"/>'
+                : '<path d="M320-200v-560l440 280-440 280Z"/>';
+            startStopBtn.style.backgroundColor = isRunning ? '#333' : '#2a2a2a';
+        });
+
+        resetBtn.addEventListener('click', () => {
+            resetBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => resetBtn.style.transform = 'scale(1)', 100);
+            
+            maze = new Maze(GRID_SIZE, GRID_SIZE);
+            maze.generate();
+            
+            activePaths = [];
+            quantumPathfinder = new QuantumPathfinder(maze);
+            pathSolved = false;
+            
+            centerMaze();
+        });
+        
+        zoomInBtn.addEventListener('click', () => {
+            zoomLevel = Math.min(zoomLevel * 1.2, 5);
+            centerMaze();
+        });
+        
+        zoomOutBtn.addEventListener('click', () => {
+            zoomLevel = Math.max(zoomLevel * 0.8, 0.1);
+            centerMaze();
+        });
+
+        window.addEventListener('beforeunload', saveGameState);
+        
+        window.addEventListener('load', () => {
+            loadGameState();
+            initMaze();
+            isRunning = true;
+            startStopBtn.querySelector('svg').innerHTML = '<path d="M520-200h80v-560h-80v560Zm-160 0h80v-560h-80v560Z"/>';
+            startStopBtn.style.backgroundColor = '#333';
+        });
+
+        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeCanvas));
+        resizeObserver.observe(canvas.parentElement);
+
+        setInterval(saveGameState, 5000);
+
+        function initThemeSelector() {
+            const themeSelector = document.getElementById('themeSelector');
+            themeSelector.innerHTML = '';
+            
+            colorThemes.forEach((theme, index) => {
+                const themeOption = document.createElement('div');
+                themeOption.className = 'theme-option';
+                themeOption.style.backgroundColor = theme.background;
+                
+                const previewContainer = document.createElement('div');
+                previewContainer.style.display = 'flex';
+                previewContainer.style.gap = '2px';
+                previewContainer.style.flexWrap = 'nowrap';
+                
+                [theme.primary, theme.secondary, theme.tertiary].forEach(color => {
+                    const preview = document.createElement('div');
+                    preview.className = 'color-preview';
+                    preview.style.backgroundColor = color;
+                    previewContainer.appendChild(preview);
+                });
+                
+                themeOption.appendChild(previewContainer);
+                if (theme === currentTheme) themeOption.classList.add('selected');
+                themeOption.addEventListener('click', () => selectTheme(index));
+                themeSelector.appendChild(themeOption);
+            });
+        }
+
+        function selectTheme(index) {
+            currentTheme = colorThemes[index];
+            updateSelectedTheme();
+            updateGameColors();
+        }
+
+        function updateSelectedTheme() {
+            const themeOptions = document.querySelectorAll('.theme-option');
+            themeOptions.forEach((option, index) => {
+                option.classList.toggle('selected', colorThemes[index] === currentTheme);
+            });
+        }
+
+        function updateGameColors() {
+            document.body.style.backgroundColor = currentTheme.background;
+            document.body.style.color = currentTheme.primary;
+            
+            activePaths.forEach(path => {
+                path.color = chroma.mix(currentTheme.primary, currentTheme.secondary, Math.random()).hex();
+            });
+            
+            drawScene();
+        }
+
+        const togglePanel = document.querySelector('.toggle-panel');
+        
+        togglePanel.addEventListener('click', () => {
+            const sidePanel = document.querySelector('.side-panel');
+            sidePanel.classList.toggle('collapsed');
+            const svg = togglePanel.querySelector('svg');
+            svg.style.transform = sidePanel.classList.contains('collapsed') ? 'rotate(180deg)' : 'rotate(0deg)';
+            updatePanelVisibility();
+        });
+
+        function updatePanelVisibility() {
+            const sidePanel = document.querySelector('.side-panel');
+            const isCollapsed = sidePanel.classList.contains('collapsed');
+            const controls = document.querySelectorAll('.control-group, .entity-list, .theme-selector');
+            const isMobile = window.innerWidth <= 768;
+            
+            requestAnimationFrame(() => {
+                sidePanel.style.width = isCollapsed ? '0' : '250px';
+                sidePanel.style.padding = isCollapsed ? '0' : '10px';
+                
+                controls.forEach(element => {
+                    element.style.display = isCollapsed ? 'none' : 
+                        (element.classList.contains('theme-selector') ? 'grid' : 'flex');
+                    element.style.opacity = isCollapsed ? '0' : '1';
+                    element.style.pointerEvents = isCollapsed ? 'none' : 'all';
+                });
+                
+                if (isMobile) {
+                    Object.assign(sidePanel.style, {
+                        position: 'fixed',
+                        right: '10px',
+                        bottom: '10px',
+                        top: 'auto'
+                    });
+                } else {
+                    Object.assign(sidePanel.style, {
+                        position: 'relative',
+                        right: '0',
+                        top: '0',
+                        bottom: '0'
+                    });
+                }
+                
+                requestAnimationFrame(resizeCanvas);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initThemeSelector();
+            initMaze();
+            resizeCanvas();
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+</html>

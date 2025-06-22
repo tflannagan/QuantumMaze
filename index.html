@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuantumMaze | Ty</title>
+    <title>QuantumMaze | Optimized</title>
     <link rel="icon" type="image/png" href="favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -451,13 +451,16 @@
         let frameCount = 0;
         let lastPerformanceCheck = 0;
         let processingTime = 0;
+        let uiUpdateCounter = 0;
         
-        const GRID_SIZE = 300;
+        const GRID_SIZE = 100;
         const CELL_SIZE = 20;
-        const FIXED_TIME_STEP = 10;
-        const MAX_PATHS = 100;
-        const MAX_PROCESSING_TIME = 20;
-        const PARTICLES_PER_FRAME = 25;
+        const FIXED_TIME_STEP = 16;
+        const MAX_PATHS = 25;
+        const MAX_PROCESSING_TIME = 8;
+        const PARTICLES_PER_FRAME = 5;
+        const UI_UPDATE_INTERVAL = 5;
+        const MAX_PATH_LENGTH = 1000;
         
         const colorThemes = [
             {name: 'Earth', primary: '#4B7BE5', secondary: '#345E8F', tertiary: '#89CFF0', background: '#0A1621'},
@@ -471,8 +474,6 @@
         ];
 
         let currentTheme = colorThemes[0];
-        const offscreenCanvas = document.createElement('canvas');
-        const offscreenCtx = offscreenCanvas.getContext('2d');
 
         class Cell {
             constructor(x, y) {
@@ -505,7 +506,8 @@
                 this.endCell = null;
                 this.pulsateTime = 0;
                 this.pulsateSpeed = 0.05;
-                this.minimumPathLength = Math.floor((width + height) * 0.75);
+                this.minimumPathLength = Math.floor((width + height) * 0.5);
+                this.dirtyRegions = new Set();
                 this.initialize();
             }
 
@@ -637,7 +639,6 @@
             }
 
             precomputeDistances() {
-                const open = [];
                 const endX = this.endCell.x;
                 const endY = this.endCell.y;
                 
@@ -672,10 +673,15 @@
                     cell.visitCount = 0;
                 }
                 this.precomputeDistances();
+                this.dirtyRegions.clear();
             }
 
             update(dt) {
                 this.pulsateTime += dt * this.pulsateSpeed;
+            }
+
+            isInViewport(x, y, cellSize) {
+                return x > -cellSize && y > -cellSize && x < canvas.width && y < canvas.height;
             }
 
             draw(ctx, offsetX, offsetY, zoomLevel) {
@@ -685,123 +691,151 @@
                 ctx.fillStyle = chroma(currentTheme.background).darken(0.5).hex();
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                for (const cell of this.cells) {
-                    const x = cell.x * cellSize + offsetX;
-                    const y = cell.y * cellSize + offsetY;
-                    
-                    if (x < -cellSize || y < -cellSize || x > canvas.width || y > canvas.height) {
-                        continue;
-                    }
-                    
-                    if (cell.isStart) {
-                        cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
-                        const startPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                const startCol = Math.max(0, Math.floor(-offsetX / cellSize));
+                const endCol = Math.min(this.width, Math.ceil((canvas.width - offsetX) / cellSize));
+                const startRow = Math.max(0, Math.floor(-offsetY / cellSize));
+                const endRow = Math.min(this.height, Math.ceil((canvas.height - offsetY) / cellSize));
+                
+                for (let y = startRow; y < endRow; y++) {
+                    for (let x = startCol; x < endCol; x++) {
+                        const cell = this.getCell(x, y);
+                        if (!cell) continue;
                         
-                        const startGlow = ctx.createRadialGradient(
-                            x + cellSize/2, y + cellSize/2, 0,
-                            x + cellSize/2, y + cellSize/2, cellSize * 1.5
-                        );
-                        startGlow.addColorStop(0, chroma(currentTheme.primary).brighten(3).alpha(0.7 * startPulse).hex());
-                        startGlow.addColorStop(0.6, chroma(currentTheme.primary).alpha(0.3 * startPulse).hex());
-                        startGlow.addColorStop(1, chroma(currentTheme.primary).alpha(0).hex());
+                        const screenX = x * cellSize + offsetX;
+                        const screenY = y * cellSize + offsetY;
                         
-                        ctx.fillStyle = startGlow;
-                        ctx.fillRect(x - cellSize/2, y - cellSize/2, cellSize * 2, cellSize * 2);
+                        if (cell.isStart) {
+                            cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
+                            const startPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                            
+                            ctx.fillStyle = chroma(currentTheme.primary).brighten(2).alpha(0.8).hex();
+                            ctx.fillRect(screenX, screenY, cellSize, cellSize);
+                            
+                            ctx.beginPath();
+                            ctx.arc(screenX + cellSize/2, screenY + cellSize/2, cellSize/3, 0, Math.PI * 2);
+                            ctx.fillStyle = "#FFFFFF";
+                            ctx.fill();
+                            
+                            ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.fillStyle = "#000000";
+                            ctx.fillText("S", screenX + cellSize/2, screenY + cellSize/2);
+                        } else if (cell.isEnd) {
+                            cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
+                            const endPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                            
+                            ctx.fillStyle = chroma(currentTheme.tertiary).brighten(2).alpha(0.8).hex();
+                            ctx.fillRect(screenX, screenY, cellSize, cellSize);
+                            
+                            ctx.beginPath();
+                            ctx.arc(screenX + cellSize/2, screenY + cellSize/2, cellSize/3, 0, Math.PI * 2);
+                            ctx.fillStyle = "#FFFFFF";
+                            ctx.fill();
+                            
+                            ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.fillStyle = "#000000";
+                            ctx.fillText("E", screenX + cellSize/2, screenY + cellSize/2);
+                        } else if (cell.solidPath) {
+                            ctx.fillStyle = chroma.mix(currentTheme.primary, currentTheme.tertiary, 0.5).brighten(2).alpha(0.7).hex();
+                            ctx.fillRect(screenX, screenY, cellSize, cellSize);
+                        } else if (cell.quantum) {
+                            const intensity = Math.min(1, 0.2 + globalPulsate * 0.8);
+                            const visitIntensity = Math.min(1, cell.visitCount / 5);
+                            ctx.fillStyle = chroma(currentTheme.primary).alpha(intensity * 0.4 * (1 - visitIntensity * 0.5)).hex();
+                            ctx.fillRect(screenX, screenY, cellSize, cellSize);
+                        }
                         
-                        ctx.fillStyle = chroma(currentTheme.primary).brighten(2).alpha(0.8).hex();
-                        ctx.fillRect(x, y, cellSize, cellSize);
+                        ctx.strokeStyle = chroma(currentTheme.tertiary).alpha(0.4).hex();
+                        ctx.lineWidth = Math.max(1, zoomLevel);
                         
-                        ctx.beginPath();
-                        ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/3, 0, Math.PI * 2);
-                        ctx.fillStyle = "#FFFFFF";
-                        ctx.fill();
+                        if (cell.walls.top) {
+                            ctx.beginPath();
+                            ctx.moveTo(screenX, screenY);
+                            ctx.lineTo(screenX + cellSize, screenY);
+                            ctx.stroke();
+                        }
                         
-                        ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                        ctx.fillStyle = "#000000";
-                        ctx.fillText("S", x + cellSize/2, y + cellSize/2);
-                    } else if (cell.isEnd) {
-                        cell.pulsate = (cell.pulsate + 0.03) % (Math.PI * 2);
-                        const endPulse = Math.sin(cell.pulsate) * 0.3 + 0.7;
+                        if (cell.walls.right) {
+                            ctx.beginPath();
+                            ctx.moveTo(screenX + cellSize, screenY);
+                            ctx.lineTo(screenX + cellSize, screenY + cellSize);
+                            ctx.stroke();
+                        }
                         
-                        const endGlow = ctx.createRadialGradient(
-                            x + cellSize/2, y + cellSize/2, 0,
-                            x + cellSize/2, y + cellSize/2, cellSize * 1.5
-                        );
-                        endGlow.addColorStop(0, chroma(currentTheme.tertiary).brighten(3).alpha(0.7 * endPulse).hex());
-                        endGlow.addColorStop(0.6, chroma(currentTheme.tertiary).alpha(0.3 * endPulse).hex());
-                        endGlow.addColorStop(1, chroma(currentTheme.tertiary).alpha(0).hex());
+                        if (cell.walls.bottom) {
+                            ctx.beginPath();
+                            ctx.moveTo(screenX, screenY + cellSize);
+                            ctx.lineTo(screenX + cellSize, screenY + cellSize);
+                            ctx.stroke();
+                        }
                         
-                        ctx.fillStyle = endGlow;
-                        ctx.fillRect(x - cellSize/2, y - cellSize/2, cellSize * 2, cellSize * 2);
-                        
-                        ctx.fillStyle = chroma(currentTheme.tertiary).brighten(2).alpha(0.8).hex();
-                        ctx.fillRect(x, y, cellSize, cellSize);
-                        
-                        ctx.beginPath();
-                        ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/3, 0, Math.PI * 2);
-                        ctx.fillStyle = "#FFFFFF";
-                        ctx.fill();
-                        
-                        ctx.font = `${Math.max(10, 16 * zoomLevel)}px Arial`;
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                        ctx.fillStyle = "#000000";
-                        ctx.fillText("E", x + cellSize/2, y + cellSize/2);
-                    } else if (cell.solidPath) {
-                        ctx.fillStyle = chroma.mix(currentTheme.primary, currentTheme.tertiary, 0.5).brighten(2).alpha(0.7).hex();
-                        ctx.fillRect(x, y, cellSize, cellSize);
-                    } else if (cell.quantum) {
-                        const intensity = Math.min(1, 0.2 + globalPulsate * 0.8);
-                        const visitIntensity = Math.min(1, cell.visitCount / 5);
-                        ctx.fillStyle = chroma(currentTheme.primary).alpha(intensity * 0.4 * (1 - visitIntensity * 0.5)).hex();
-                        ctx.fillRect(x, y, cellSize, cellSize);
-                    }
-                    
-                    ctx.strokeStyle = chroma(currentTheme.tertiary).alpha(0.4).hex();
-                    ctx.lineWidth = Math.max(1, zoomLevel);
-                    
-                    if (cell.walls.top) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, y);
-                        ctx.lineTo(x + cellSize, y);
-                        ctx.stroke();
-                    }
-                    
-                    if (cell.walls.right) {
-                        ctx.beginPath();
-                        ctx.moveTo(x + cellSize, y);
-                        ctx.lineTo(x + cellSize, y + cellSize);
-                        ctx.stroke();
-                    }
-                    
-                    if (cell.walls.bottom) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, y + cellSize);
-                        ctx.lineTo(x + cellSize, y + cellSize);
-                        ctx.stroke();
-                    }
-                    
-                    if (cell.walls.left) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, y);
-                        ctx.lineTo(x, y + cellSize);
-                        ctx.stroke();
+                        if (cell.walls.left) {
+                            ctx.beginPath();
+                            ctx.moveTo(screenX, screenY);
+                            ctx.lineTo(screenX, screenY + cellSize);
+                            ctx.stroke();
+                        }
                     }
                 }
             }
         }
 
+        class ParticlePool {
+            constructor(size) {
+                this.pool = [];
+                this.activeParticles = [];
+                this.inactiveParticles = [];
+                
+                for (let i = 0; i < size; i++) {
+                    const particle = new QuantumParticle(0, 0, i);
+                    this.pool.push(particle);
+                    this.inactiveParticles.push(particle);
+                }
+            }
+            
+            acquire(x, y, id) {
+                let particle;
+                if (this.inactiveParticles.length > 0) {
+                    particle = this.inactiveParticles.pop();
+                    particle.reset(x, y, id);
+                } else {
+                    particle = new QuantumParticle(x, y, id);
+                }
+                
+                this.activeParticles.push(particle);
+                return particle;
+            }
+            
+            release(particle) {
+                const index = this.activeParticles.indexOf(particle);
+                if (index !== -1) {
+                    this.activeParticles.splice(index, 1);
+                    this.inactiveParticles.push(particle);
+                }
+            }
+            
+            clear() {
+                this.inactiveParticles.push(...this.activeParticles);
+                this.activeParticles.length = 0;
+            }
+        }
+
         class QuantumParticle {
             constructor(x, y, id) {
+                this.reset(x, y, id);
+            }
+            
+            reset(x, y, id) {
                 this.x = x;
                 this.y = y;
                 this.id = id;
                 this.path = [];
                 this.path.push({ x, y });
                 this.age = 0;
-                this.splitChance = 0.15;
+                this.splitChance = 0.08;
                 this.speed = 0.3 + Math.random() * 0.2;
                 this.progress = 0;
                 this.reachedEnd = false;
@@ -813,10 +847,12 @@
                     Math.random()
                 ).hex();
                 this.backtrackStack = [];
+                this.stuckCounter = 0;
+                this.lastPosition = { x, y };
             }
 
             update(dt, maze) {
-                if (this.reachedEnd) return true;
+                if (this.reachedEnd || this.path.length > MAX_PATH_LENGTH) return true;
                 
                 this.age += dt;
                 
@@ -828,7 +864,19 @@
                     return true;
                 }
                 
+                if (this.x === this.lastPosition.x && this.y === this.lastPosition.y) {
+                    this.stuckCounter++;
+                } else {
+                    this.stuckCounter = 0;
+                    this.lastPosition = { x: this.x, y: this.y };
+                }
+                
+                if (this.stuckCounter > 20) {
+                    return true;
+                }
+                
                 currentCell.quantum = true;
+                currentCell.visitCount++;
                 
                 const directions = ['top', 'right', 'bottom', 'left'];
                 const possibleMoves = [];
@@ -854,15 +902,18 @@
                                     x: nextX, 
                                     y: nextY, 
                                     distance: 0,
-                                    isEnd: true
+                                    isEnd: true,
+                                    visited: hasVisited
                                 });
-                            } else if (!hasVisited) {
+                            } else {
                                 const distance = Math.abs(nextX - maze.endCell.x) + Math.abs(nextY - maze.endCell.y);
+                                const visitPenalty = hasVisited ? 1000 : 0;
                                 possibleMoves.push({ 
                                     x: nextX, 
                                     y: nextY, 
-                                    distance: distance,
-                                    isEnd: false
+                                    distance: distance + visitPenalty,
+                                    isEnd: false,
+                                    visited: hasVisited
                                 });
                             }
                         }
@@ -875,11 +926,10 @@
                         const prevPos = this.path[this.path.length - 1];
                         this.x = prevPos.x;
                         this.y = prevPos.y;
-                        const startDistance = Math.abs(maze.startCell.x - maze.endCell.x) + Math.abs(maze.startCell.y - maze.endCell.y);
-                        const currentDistance = Math.abs(this.x - maze.endCell.x) + Math.abs(this.y - maze.endCell.y);
-                        this.progress = 1 - (currentDistance / startDistance);
+                        const posKey = `${this.x},${this.y}`;
+                        this.visited.delete(posKey);
                     }
-                    return true;
+                    return this.path.length <= 1;
                 }
                 
                 const endMove = possibleMoves.find(move => move.isEnd);
@@ -893,7 +943,7 @@
                 
                 possibleMoves.sort((a, b) => {
                     const distDiff = a.distance - b.distance;
-                    if (Math.abs(distDiff) > 5) return distDiff;
+                    if (Math.abs(distDiff) > 3) return distDiff;
                     return Math.random() - 0.5;
                 });
                 
@@ -907,27 +957,11 @@
                 
                 this.path.push({ x: this.x, y: this.y });
                 
-                if (possibleMoves.length > 1 && Math.random() < this.splitChance && activePaths.length < MAX_PATHS) {
-                    const alternativeMoves = possibleMoves.slice(1);
-                    const alternativeMove = alternativeMoves[Math.floor(Math.random() * alternativeMoves.length)];
-                    
-                    const newParticle = new QuantumParticle(this.x, this.y, activePaths.length);
-                    newParticle.x = alternativeMove.x;
-                    newParticle.y = alternativeMove.y;
-                    newParticle.path = [{ x: this.x, y: this.y }, { x: alternativeMove.x, y: alternativeMove.y }];
-                    newParticle.visited.add(`${this.x},${this.y}`);
-                    newParticle.visited.add(`${alternativeMove.x},${alternativeMove.y}`);
-                    
-                    maze.getCell(alternativeMove.x, alternativeMove.y).quantum = true;
-                    
-                    activePaths.push(newParticle);
-                }
-                
                 const startDistance = Math.abs(maze.startCell.x - maze.endCell.x) + Math.abs(maze.startCell.y - maze.endCell.y);
                 const currentDistance = Math.abs(this.x - maze.endCell.x) + Math.abs(this.y - maze.endCell.y);
                 this.progress = 1 - (currentDistance / startDistance);
                 
-                return true;
+                return false;
             }
 
             draw(ctx, offsetX, offsetY, zoomLevel) {
@@ -939,7 +973,7 @@
                 const x = head.x * cellSize + offsetX + cellSize / 2;
                 const y = head.y * cellSize + offsetY + cellSize / 2;
                 
-                if (x < -cellSize || y < -cellSize || x > canvas.width || y > canvas.height) {
+                if (!maze.isInViewport(x - cellSize/2, y - cellSize/2, cellSize)) {
                     return;
                 }
                 
@@ -948,16 +982,18 @@
                     chroma(this.color).alpha(0.8).hex();
                 
                 ctx.beginPath();
-                ctx.arc(x, y, cellSize / 4, 0, Math.PI * 2);
+                ctx.arc(x, y, Math.max(2, cellSize / 6), 0, Math.PI * 2);
                 ctx.fill();
             }
         }
+
+        const particlePool = new ParticlePool(MAX_PATHS * 2);
 
         class QuantumPathfinder {
             constructor(maze) {
                 this.maze = maze;
                 this.paths = [];
-                this.initialPathCount = 50;
+                this.initialPathCount = 8;
                 this.solvedPath = null;
                 this.progress = 0;
                 this.maxProgress = 0;
@@ -966,12 +1002,13 @@
             }
 
             initialize() {
-                for (let i = 0; i < this.initialPathCount; i++) {
-                    const particle = new QuantumParticle(this.maze.startCell.x, this.maze.startCell.y, i);
-                    this.paths.push(particle);
-                }
+                particlePool.clear();
+                activePaths.length = 0;
                 
-                activePaths = [...this.paths];
+                for (let i = 0; i < this.initialPathCount; i++) {
+                    const particle = particlePool.acquire(this.maze.startCell.x, this.maze.startCell.y, i);
+                    activePaths.push(particle);
+                }
             }
 
             update(dt) {
@@ -979,13 +1016,14 @@
                 
                 this.maxProgress = 0;
                 
-                const pathsToProcess = Math.min(activePaths.length, 100);
+                const pathsToProcess = Math.min(activePaths.length, PARTICLES_PER_FRAME);
+                const indicesToRemove = [];
                 
                 for (let i = 0; i < pathsToProcess; i++) {
                     const index = Math.floor(Math.random() * activePaths.length);
                     const path = activePaths[index];
                     
-                    path.update(dt, this.maze);
+                    const shouldRemove = path.update(dt, this.maze);
                     
                     if (path.reachedEnd && !this.solvedPath) {
                         this.solvedPath = path;
@@ -993,14 +1031,24 @@
                         break;
                     }
                     
+                    if (shouldRemove) {
+                        indicesToRemove.push(index);
+                    }
+                    
                     this.maxProgress = Math.max(this.maxProgress, path.progress);
                 }
                 
-                if (activePaths.length < MAX_PATHS && !this.solvedPath && activePaths.length < 300) {
-                    for (let i = 0; i < 5; i++) {
-                        if (activePaths.length >= MAX_PATHS) break;
-                        
-                        const newParticle = new QuantumParticle(
+                for (let i = indicesToRemove.length - 1; i >= 0; i--) {
+                    const index = indicesToRemove[i];
+                    const particle = activePaths[index];
+                    activePaths.splice(index, 1);
+                    particlePool.release(particle);
+                }
+                
+                if (activePaths.length < MAX_PATHS && !this.solvedPath) {
+                    const particlesToAdd = Math.min(2, MAX_PATHS - activePaths.length);
+                    for (let i = 0; i < particlesToAdd; i++) {
+                        const newParticle = particlePool.acquire(
                             this.maze.startCell.x,
                             this.maze.startCell.y,
                             activePaths.length
@@ -1022,7 +1070,16 @@
             }
 
             draw(ctx, offsetX, offsetY, zoomLevel) {
-                for (const particle of activePaths) {
+                const cellSize = CELL_SIZE * zoomLevel;
+                const viewportParticles = activePaths.filter(particle => {
+                    if (particle.path.length === 0) return false;
+                    const head = particle.path[particle.path.length - 1];
+                    const x = head.x * cellSize + offsetX;
+                    const y = head.y * cellSize + offsetY;
+                    return maze.isInViewport(x, y, cellSize);
+                });
+                
+                for (const particle of viewportParticles) {
                     particle.draw(ctx, offsetX, offsetY, zoomLevel);
                 }
             }
@@ -1086,13 +1143,9 @@
         }
 
         function drawScene() {
-            offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-            
-            maze.draw(offscreenCtx, offsetX, offsetY, zoomLevel);
-            quantumPathfinder.draw(offscreenCtx, offsetX, offsetY, zoomLevel);
-            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(offscreenCanvas, 0, 0);
+            maze.draw(ctx, offsetX, offsetY, zoomLevel);
+            quantumPathfinder.draw(ctx, offsetX, offsetY, zoomLevel);
         }
 
         function gameLoop(timestamp) {
@@ -1109,10 +1162,11 @@
                 quantumPathfinder.update(dt);
                 processingTime = performance.now() - startTime;
                 
-                if (frameCount % 60 === 0) {
-                    if (processingTime > 30) {
-                        activePaths = activePaths.filter((p, idx) => idx % 2 === 0);
-                        quantumPathfinder.pathsToProcess = [...activePaths];
+                if (processingTime > MAX_PROCESSING_TIME) {
+                    const particlesToRemove = Math.floor(activePaths.length * 0.1);
+                    for (let i = 0; i < particlesToRemove; i++) {
+                        const particle = activePaths.pop();
+                        if (particle) particlePool.release(particle);
                     }
                 }
             } else {
@@ -1120,7 +1174,11 @@
             }
             
             drawScene();
-            updateUI();
+            
+            uiUpdateCounter++;
+            if (uiUpdateCounter % UI_UPDATE_INTERVAL === 0) {
+                updateUI();
+            }
             
             requestAnimationFrame(gameLoop);
         }
@@ -1175,7 +1233,7 @@
             
             const samplePaths = [...activePaths]
                 .sort((a, b) => b.progress - a.progress)
-                .slice(0, 5);
+                .slice(0, 3);
                 
             entityList.innerHTML = samplePaths.map(path => {
                 const progressPercentage = Math.round(path.progress * 100);
@@ -1215,8 +1273,6 @@
             const container = canvas.parentElement;
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
-            offscreenCanvas.width = canvas.width;
-            offscreenCanvas.height = canvas.height;
             
             centerMaze();
             drawScene();
@@ -1234,41 +1290,6 @@
             quantumPathfinder = new QuantumPathfinder(maze);
             
             centerMaze();
-        }
-
-        function saveGameState() {
-            const gameState = {
-                zoomLevel,
-                offsetX,
-                offsetY,
-                isRunning,
-                currentTheme: colorThemes.indexOf(currentTheme)
-            };
-            localStorage.setItem('quantumMazeState', JSON.stringify(gameState));
-        }
-
-        function loadGameState() {
-            const savedState = localStorage.getItem('quantumMazeState');
-            if (!savedState) return false;
-            
-            try {
-                const gameState = JSON.parse(savedState);
-                zoomLevel = gameState.zoomLevel || 1;
-                offsetX = gameState.offsetX || 0;
-                offsetY = gameState.offsetY || 0;
-                isRunning = gameState.isRunning || false;
-                
-                if (typeof gameState.currentTheme === 'number' && 
-                    gameState.currentTheme >= 0 && 
-                    gameState.currentTheme < colorThemes.length) {
-                    currentTheme = colorThemes[gameState.currentTheme];
-                }
-                
-                return true;
-            } catch (e) {
-                console.error("Error loading game state:", e);
-                return false;
-            }
         }
         
         canvas.addEventListener('mousedown', (event) => {
@@ -1293,11 +1314,13 @@
                 dragStartY = event.clientY;
             }
             
-            const cell = findNearbyCell(pos.x, pos.y, offsetX, offsetY, zoomLevel);
-            if (cell) {
-                showTooltip(event.clientX, event.clientY, cell);
-            } else {
-                tooltip.style.display = 'none';
+            if (frameCount % 5 === 0) {
+                const cell = findNearbyCell(pos.x, pos.y, offsetX, offsetY, zoomLevel);
+                if (cell) {
+                    showTooltip(event.clientX, event.clientY, cell);
+                } else {
+                    tooltip.style.display = 'none';
+                }
             }
         });
 
@@ -1344,7 +1367,8 @@
             maze = new Maze(GRID_SIZE, GRID_SIZE);
             maze.generate();
             
-            activePaths = [];
+            particlePool.clear();
+            activePaths.length = 0;
             quantumPathfinder = new QuantumPathfinder(maze);
             pathSolved = false;
             
@@ -1360,21 +1384,6 @@
             zoomLevel = Math.max(zoomLevel * 0.8, 0.1);
             centerMaze();
         });
-
-        window.addEventListener('beforeunload', saveGameState);
-        
-        window.addEventListener('load', () => {
-            loadGameState();
-            initMaze();
-            isRunning = true;
-            startStopBtn.querySelector('svg').innerHTML = '<path d="M520-200h80v-560h-80v560Zm-160 0h80v-560h-80v560Z"/>';
-            startStopBtn.style.backgroundColor = '#333';
-        });
-
-        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeCanvas));
-        resizeObserver.observe(canvas.parentElement);
-
-        setInterval(saveGameState, 5000);
 
         function initThemeSelector() {
             const themeSelector = document.getElementById('themeSelector');
@@ -1481,6 +1490,9 @@
             resizeCanvas();
             requestAnimationFrame(gameLoop);
         });
+        
+        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeCanvas));
+        resizeObserver.observe(canvas.parentElement);
     </script>
 </body>
 </html>
